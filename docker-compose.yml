@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  thyroid-api:
+    build: .
+    container_name: thyroid-ml-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+    restart: always
