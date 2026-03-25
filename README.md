@@ -1,248 +1,113 @@
-Client Request
-      ↓
- FastAPI API
-      ↓
- Preprocessing Pipeline
-      ↓
- Trained ML Model
-      ↓
- Prediction Response
+# Thyroid ML System
 
+This project is an end-to-end machine learning system for predicting thyroid disease using both structured clinical data and medical images. The goal was to move beyond a simple model and build something closer to a real-world ML application, including training pipelines, APIs, monitoring, and deployment.
 
- 📌 Project Brief — Thyroid Disease ML System
+---
 
- 1️⃣ Project Goal
+## Overview
 
-The goal of this project was to build an **end-to-end machine learning system** that can predict thyroid disease using clinical patient data.
+The system supports two types of inputs:
 
-The system includes:
+* Tabular clinical data (such as lab values and patient information)
+* Medical images for classification (benign vs malignant)
 
-* Data preprocessing pipeline
-* Machine learning model training
-* Model serialization
-* REST API for predictions
-* Docker container deployment
+For tabular data, multiple machine learning models were trained and compared. For images, a deep learning model based on transfer learning was used.
+
+The project also includes model tracking, versioning, logging, and a deployable API.
+
+---
+
+## Project Structure
+
+Thyroid-ML-System/
+
+* api/ → FastAPI application for serving predictions
+* src/ → Training scripts for tabular and image models
+* monitoring/ → Drift detection logic
+* models/ → Saved tabular models (versioned)
+* image_models/ → Saved deep learning model
+* logs/ → Prediction logs
+* .github/workflows/ → CI/CD pipeline
+* Dockerfile → Container setup
+* requirements.txt → Dependencies
+
+---
+
+## What I Built
+
+* A preprocessing pipeline using scikit-learn (handling missing values, scaling, encoding)
+* Multiple models for comparison (RandomForest, LogisticRegression, XGBoost)
+* A CNN-based image classifier using EfficientNet with transfer learning
+* A FastAPI service with endpoints for both tabular and image predictions
+* Model versioning to manage multiple trained models
+* Experiment tracking using MLflow
 * Prediction logging for monitoring
+* Basic drift detection using Evidently
+* Docker setup for deployment
+* CI/CD pipeline using GitHub Actions
 
 ---
 
- 🧠 2️⃣ Dataset Used
+## How to Run the Project
 
-Dataset: **Hypothyroid dataset**
+Clone the repository:
 
-Key characteristics:
+git clone https://github.com/lonewolf1621/thyroid-ml-system.git
+cd thyroid-ml-system
 
-* **3711 patient records**
-* **28 input features**
-* Clinical indicators such as:
+Create a virtual environment:
 
-  * TSH
-  * T3
-  * TT4
-  * T4U
-  * FTI
-  * patient medical conditions
+python -m venv venv
+venv\Scripts\activate
 
-Target variable:
+Install dependencies:
 
-```
-binaryClass
-0 → healthy
-1 → hypothyroid
-```
+pip install -r requirements.txt
 
----
+Run the API:
 
- ⚙️ 3️⃣ ML Pipeline Implementation
+python -m uvicorn api.main:app --reload
 
- Data preprocessing
+Then open:
 
-Handled several data issues:
-
-* Missing values represented as `"?"`
-* Categorical variables
-* Numerical scaling
-
-Techniques used:
-
-```
-SimpleImputer
-StandardScaler
-OneHotEncoder
-ColumnTransformer
-Pipeline
-```
-
-This created a **reproducible preprocessing pipeline**.
+http://127.0.0.1:8000/docs
 
 ---
 
- 🤖 4️⃣ Models Trained
+## API Endpoints
 
-Three models were trained and evaluated:
-
-| Model               | ROC-AUC |
-| ------------------- | ------- |
-| Logistic Regression | ~0.99   |
-| Random Forest       | ~1.0    |
-| XGBoost             | ~0.999  |
-
-The **Random Forest model performed best**.
-
-Model saved as:
-
-```
-models/model_v2_pipeline.pkl
-```
-
----
-
- 🌐 5️⃣ Inference API (FastAPI)
-
-A REST API was built using **FastAPI**.
-
-Endpoints:
-
-```
-GET /
-GET /health
 POST /predict
-```
+Used for predictions on tabular data.
 
-The API:
-
-* receives patient data
-* converts it to a DataFrame
-* runs the ML pipeline
-* returns prediction + probability
-
-Example response:
-
-```json
-{
- "prediction": 1,
- "probability": 0.97
-}
-```
+POST /predict-image
+Used for image classification.
 
 ---
 
- 🐳 6️⃣ Docker Containerization
+## Notes
 
-The API was containerized using Docker.
-
-Steps implemented:
-
-```
-Dockerfile
-Docker image build
-Container deployment
-Port mapping
-```
-
-Run command:
-
-```
-docker run -p 8000:8000 thyroid-ml-api
-```
-
-The API becomes accessible at:
-
-```
-http://localhost:8000/docs
-```
+The dataset and image files are not included in this repository.
+To run training locally, place your data in the `data/` folder and images in the `images/` folder.
 
 ---
 
- 📊 7️⃣ Monitoring and Logging
+## Key Takeaways
 
-Prediction logging was added to simulate **model monitoring**.
+This project helped me understand how to:
 
-All predictions are stored in:
-
-```
-logs/predictions.log
-```
-
-Example entry:
-
-```
-Prediction: 1 | Probability: 0.99
-```
-
-This is similar to **production ML monitoring systems**.
+* Structure a machine learning project beyond notebooks
+* Work with both tabular and image data in a single system
+* Build and serve models using FastAPI
+* Track experiments and manage model versions
+* Handle basic monitoring and drift detection
+* Package everything using Docker and automate workflows with CI/CD
 
 ---
 
- 🏗 9️⃣ Final System Architecture
+## Future Improvements
 
-```
-Dataset
-   ↓
-Training Pipeline
-   ↓
-Saved Model (.pkl)
-   ↓
-FastAPI Inference API
-   ↓
-Docker Container
-   ↓
-Prediction Logging
-```
+* Automate model retraining when drift is detected
+* Add a frontend interface for easier interaction
+* Improve monitoring with real-time dashboards
+* Optimize image model performance further
 
----
-
- 📁 10️⃣ Final Project Structure
-
-```
-Thyroid-ML-System
-│
-├── api
-│   └── main.py
-│
-├── src
-│   └── train.py
-│
-├── schemas
-│
-├── models
-│   └── model_v2_pipeline.pkl
-│
-├── logs
-│
-├── data
-│
-├── Dockerfile
-├── requirements.txt
-```
-
----
-
- 🎯 What This Project Demonstrates
-
-This project demonstrates skills in:
-
-* Machine Learning pipelines
-* Feature preprocessing
-* Model evaluation
-* API development
-* Docker containerization
-* ML system deployment
-* debugging production issues
-
----
-
- 💡 My Advice
-
-You **should write this project explanation now** while it's fresh.
-
-Later you can **extend it after upgrades** like:
-
-* model versioning
-* CI/CD
-* cloud deployment
-* monitoring dashboards
-
----
-
-If you'd like, I can also help you create a **perfect GitHub README + architecture diagram** for this project so it looks **very strong to ML recruiters**.
