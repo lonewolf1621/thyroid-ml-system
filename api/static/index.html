@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thyroid ML System</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #5b6573; --line: #e3e6eb;
+    --accent: #2457c5; --accent-ink: #ffffff; --pos: #b4372f; --neg: #23794a; --track: #e9ecf1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111418; --panel: #191d22; --ink: #e7eaee; --muted: #9aa4b1; --line: #2a3038;
+            --accent: #6d97ff; --accent-ink: #0d1117; --pos: #ff7b72; --neg: #56d364; --track: #262c34; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header, main, footer { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 32px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 6px; }
+  .warn { font-size: 13px; color: var(--muted); border-left: 3px solid var(--pos); padding-left: 10px; margin: 14px 0 22px; }
+  main { display: grid; grid-template-columns: 1.35fr 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  h2 { font-size: 15px; margin: 0 0 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 520px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  label { display: block; font-size: 13px; color: var(--muted); }
+  input[type=number], select { width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid var(--line);
+         border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; }
+  .unit { font-size: 11px; color: var(--muted); }
+  fieldset { border: 0; padding: 0; margin: 18px 0 0; }
+  legend { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .checks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 14px; }
+  .checks label { color: var(--ink); font-size: 14px; display: flex; gap: 8px; align-items: center; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  button { font: inherit; border-radius: 8px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--line);
+           background: var(--panel); color: var(--ink); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .result-label { font-size: 28px; font-weight: 700; margin: 4px 0; }
+  .pos { color: var(--pos); } .neg { color: var(--neg); }
+  .bar { position: relative; height: 12px; background: var(--track); border-radius: 6px; margin: 14px 0 6px; }
+  .bar .fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--accent); width: 0; transition: width .3s; }
+  .bar .tick { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
+  .scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 16px 0 0; font-size: 14px; }
+  dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .err { color: var(--pos); font-size: 14px; }
+  footer { color: var(--muted); font-size: 13px; padding: 28px 16px 40px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Thyroid ML System</h1>
+  <p class="sub">Hypothyroidism risk from a routine thyroid panel: trained, evaluated and served end to end.</p>
+  <p class="warn">Portfolio project on a public 1980s research dataset. Not a medical device; do not use for clinical decisions.</p>
+</header>
+
+<main>
+  <form class="card" id="form" autocomplete="off">
+    <h2>Patient</h2>
+    <div class="grid">
+      <label>Age <input type="number" name="age" min="0" max="120" step="1"></label>
+      <label>Sex
+        <select name="sex"><option value="">Unknown</option><option>F</option><option>M</option></select>
+      </label>
+      <label>Referral source
+        <select name="referral_source"><option>other</option><option>SVI</option><option>SVHC</option><option>STMW</option><option>SVHD</option></select>
+      </label>
+      <label>TSH <span class="unit">mU/L</span><input type="number" name="TSH" min="0" step="any"></label>
+      <label>T3 <span class="unit">nmol/L</span><input type="number" name="T3" min="0" step="any"></label>
+      <label>TT4 <span class="unit">nmol/L</span><input type="number" name="TT4" min="0" step="any"></label>
+      <label>T4U <input type="number" name="T4U" min="0" step="any"></label>
+      <label>FTI <input type="number" name="FTI" min="0" step="any"></label>
+    </div>
+    <fieldset>
+      <legend>History (leave blank if no)</legend>
+      <div class="checks" id="checks"></div>
+    </fieldset>
+    <div class="actions">
+      <button type="submit" class="primary">Predict</button>
+      <button type="button" data-example="hypo">Example: hypothyroid</button>
+      <button type="button" data-example="healthy">Example: healthy</button>
+    </div>
+  </form>
+
+  <section>
+    <div class="card" id="result">
+      <h2>Result</h2>
+      <p class="muted" id="placeholder">Fill in a few values or load an example, then press Predict. Empty lab fields are treated as "not measured".</p>
+      <div id="output" hidden>
+        <div class="result-label" id="label"></div>
+        <div class="bar"><div class="fill" id="fill"></div><div class="tick" id="tick" title="Decision threshold"></div></div>
+        <div class="scale"><span>0</span><span id="thlabel"></span><span>1</span></div>
+        <dl>
+          <dt>Probability</dt><dd id="prob"></dd>
+          <dt>Model version</dt><dd id="ver"></dd>
+          <dt>Latency</dt><dd id="lat"></dd>
+        </dl>
+      </div>
+      <p class="err" id="error" hidden></p>
+    </div>
+    <div class="card" style="margin-top:20px">
+      <h2>Model</h2>
+      <dl id="model"><dt>Status</dt><dd>Loading…</dd></dl>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <a href="/docs">API docs</a> · <a href="/v1/model">Model metadata</a> · <a href="/v1/monitoring/drift">Drift report</a> ·
+  <a href="https://github.com/lonewolf1621/thyroid-ml-system">Source on GitHub</a>
+</footer>
+
+<script>
+const FLAGS = {
+  on_thyroxine: "On thyroxine", query_on_thyroxine: "Query on thyroxine",
+  on_antithyroid_medication: "Antithyroid medication", sick: "Sick", pregnant: "Pregnant",
+  thyroid_surgery: "Thyroid surgery", I131_treatment: "I-131 treatment",
+  query_hypothyroid: "Query hypothyroid", query_hyperthyroid: "Query hyperthyroid",
+  lithium: "Lithium", goitre: "Goitre", tumor: "Tumour", hypopituitary: "Hypopituitary", psych: "Psych",
+};
+const EXAMPLES = {
+  hypo: { age: 61, sex: "F", TSH: 45, T3: 1.0, TT4: 48, T4U: 0.9, FTI: 53, query_hypothyroid: true, referral_source: "other" },
+  healthy: { age: 34, sex: "M", TSH: 1.4, T3: 2.1, TT4: 112, T4U: 1.0, FTI: 112, referral_source: "SVI" },
+};
+const form = document.getElementById("form");
+const checks = document.getElementById("checks");
+for (const [key, text] of Object.entries(FLAGS)) {
+  checks.insertAdjacentHTML("beforeend", `<label><input type="checkbox" name="${key}"> ${text}</label>`);
+}
+
+function fill(example) {
+  form.reset();
+  for (const [k, v] of Object.entries(example)) {
+    const el = form.elements[k];
+    if (!el) continue;
+    if (el.type === "checkbox") el.checked = Boolean(v); else el.value = v;
+  }
+}
+document.querySelectorAll("[data-example]").forEach(b => b.addEventListener("click", () => {
+  fill(EXAMPLES[b.dataset.example]); form.requestSubmit();
+}));
+
+function payload() {
+  const body = {};
+  for (const el of form.elements) {
+    if (!el.name) continue;
+    if (el.type === "checkbox") { if (el.checked) body[el.name] = true; }
+    else if (el.type === "number") { if (el.value !== "") body[el.name] = Number(el.value); }
+    else if (el.value !== "") body[el.name] = el.value;
+  }
+  return body;
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const err = document.getElementById("error");
+  err.hidden = true;
+  try {
+    const res = await fetch("/v1/predict", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(Array.isArray(data.detail) ? data.detail.map(d => `${d.loc.at(-1)}: ${d.msg}`).join("; ") : data.detail);
+    const positive = data.prediction === "hypothyroid";
+    document.getElementById("placeholder").hidden = true;
+    document.getElementById("output").hidden = false;
+    const label = document.getElementById("label");
+    label.textContent = positive ? "Hypothyroid risk" : "Negative";
+    label.className = "result-label " + (positive ? "pos" : "neg");
+    document.getElementById("fill").style.width = (data.probability_hypothyroid * 100) + "%";
+    document.getElementById("fill").style.background = positive ? "var(--pos)" : "var(--neg)";
+    document.getElementById("tick").style.left = (data.threshold * 100) + "%";
+    document.getElementById("thlabel").textContent = `threshold ${data.threshold.toFixed(3)}`;
+    document.getElementById("prob").textContent = data.probability_hypothyroid.toFixed(3);
+    document.getElementById("ver").textContent = data.model_version;
+    document.getElementById("lat").textContent = (res.headers.get("x-latency-ms") || "–") + " ms";
+    if (window.matchMedia("(max-width: 820px)").matches) {
+      document.getElementById("result").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  } catch (ex) {
+    err.textContent = "Error: " + ex.message;
+    err.hidden = false;
+  }
+});
+
+(async () => {
+  const el = document.getElementById("model");
+  try {
+    const res = await fetch("/v1/model");
+    const m = await res.json();
+    if (!res.ok) throw new Error(m.detail);
+    const t = m.test_metrics;
+    const rows = [
+      ["Algorithm", m.model_type.replaceAll("_", " ")],
+      ["Hold-out ROC-AUC", t.roc_auc.toFixed(3)],
+      ["Hold-out PR-AUC", t.pr_auc.toFixed(3)],
+      ["Sensitivity", t.sensitivity.toFixed(3)],
+      ["Specificity", t.specificity.toFixed(3)],
+      ["Training rows", m.data.train_rows.toLocaleString()],
+    ];
+    el.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  } catch (ex) {
+    el.innerHTML = `<dt>Status</dt><dd class="err">${ex.message}</dd>`;
+  }
+})();
+</script>
+</body>
+</html>

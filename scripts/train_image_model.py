@@ -3,9 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
-
-from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader, random_split
+from torchvision.datasets import ImageFolder
 
 DATA_DIR = "images"
 MODEL_PATH = "image_models/cancer_efficientnet.pth"

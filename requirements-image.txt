@@ -1,0 +1,5 @@
+# Optional: enables the experimental /v1/predict-image endpoint (large download).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.2
+torchvision>=0.17
+pillow>=10

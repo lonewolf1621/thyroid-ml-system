@@ -1,12 +1,10 @@
-fastapi
-uvicorn
-python-multipart
-pandas
-numpy
-scikit-learn
-xgboost
-joblib
-torch
-torchvision
-pillow
-mlflow
+# Runtime (API + training). Exact versions used for a build are recorded in models/metadata.json.
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29
+pydantic>=2.6,<3
+python-multipart>=0.0.9
+scikit-learn>=1.4
+pandas>=2.2
+numpy>=1.26
+scipy>=1.11
+joblib>=1.3
