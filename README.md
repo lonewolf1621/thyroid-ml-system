@@ -110,7 +110,8 @@ Every response carries `x-request-id` and `x-latency-ms`; every request is logge
 - **Hold-out touched once,** with bootstrap 95% confidence intervals.
 - **Reproducible builds.** The Docker image downloads the public data and trains during the build; the
   dataset's SHA-256, library versions and metrics are recorded in `metadata.json`.
-- **Fast single predictions.** The forest trains on all cores but serves with one thread: ~76 ms → ~20 ms per request.
+- **Fast single predictions.** The forest trains on all cores but serves single-threaded (3.7× faster per row in a
+  benchmark). CI measures the running container: **p50 40 ms, p95 43 ms, p99 48 ms** server-side over 200 requests.
 
 ## Monitoring
 
@@ -137,7 +138,8 @@ The service reads `PORT`, so the same image runs unchanged on all three.
 On every push, GitHub Actions:
 1. lints with ruff and runs 29 tests (data cleaning, schema validation, training, drift, API);
 2. downloads the real dataset, trains with MLflow tracking, and publishes the model card to the run summary;
-3. builds the image, starts the container and checks real predictions, validation errors, the UI and drift;
+3. builds the image, starts the container, checks real predictions, validation errors, the UI and drift, and
+   benchmarks latency (p50/p95/p99);
 4. on `main`, pushes the image to GitHub Container Registry.
 
 ## Project structure
