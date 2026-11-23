@@ -26,7 +26,13 @@ class ThyroidModel:
             raise ValueError("Model was trained with a different feature schema than this code expects.")
         reference_path = model_dir / "drift_reference.json"
         reference = json.loads(reference_path.read_text()) if reference_path.exists() else {}
-        return cls(joblib.load(model_dir / "model.joblib"), metadata, reference)
+        pipeline = joblib.load(model_dir / "model.joblib")
+        # Training uses all cores; for single-row requests, spinning up a worker pool costs more
+        # than it saves (random forest: ~76 ms -> ~20 ms per prediction on a 2-vCPU box).
+        estimator = pipeline.named_steps.get("model") if hasattr(pipeline, "named_steps") else None
+        if estimator is not None and hasattr(estimator, "n_jobs"):
+            estimator.n_jobs = 1
+        return cls(pipeline, metadata, reference)
 
     @property
     def version(self) -> str:
