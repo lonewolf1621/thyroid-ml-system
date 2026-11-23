@@ -81,11 +81,18 @@ def candidate_models(seed: int = SEED) -> dict[str, Pipeline]:
 
 
 def threshold_for_sensitivity(y_true: np.ndarray, proba: np.ndarray, target: float = TARGET_SENSITIVITY) -> float:
-    """Highest threshold whose sensitivity is still >= target (i.e. the best specificity at that sensitivity)."""
-    _, tpr, thresholds = roc_curve(y_true, proba)
-    ok = np.where(tpr >= target)[0]
-    threshold = float(thresholds[ok[0]]) if len(ok) else 0.5
-    return float(np.clip(threshold, 1e-6, 1 - 1e-6))
+    """Threshold with the best Youden's J (sensitivity + specificity - 1) among those with sensitivity >= target.
+
+    Taking simply the highest threshold that reaches the target puts the cut-off right at the
+    edge of 95% sensitivity, which does not hold up on new data; maximising J above the floor
+    leaves a margin whenever the classes separate well.
+    """
+    fpr, tpr, thresholds = roc_curve(y_true, proba)
+    ok = np.where((tpr >= target) & np.isfinite(thresholds))[0]
+    if not len(ok):
+        return 0.5
+    best = ok[np.argmax(tpr[ok] - fpr[ok])]
+    return float(np.clip(thresholds[best], 1e-6, 1 - 1e-6))
 
 
 def classification_report_at(y_true: np.ndarray, proba: np.ndarray, threshold: float) -> dict:
@@ -255,7 +262,7 @@ Selected by mean CV PR-AUC: **{m['model_type']}**.
 |---|---|
 | ROC-AUC | {t['roc_auc']:.3f} (95% CI {t['roc_auc_95ci'][0]:.3f}–{t['roc_auc_95ci'][1]:.3f}) |
 | PR-AUC | {t['pr_auc']:.3f} (95% CI {t['pr_auc_95ci'][0]:.3f}–{t['pr_auc_95ci'][1]:.3f}) |
-| Decision threshold | {t['threshold']:.3f} (chosen for ≥{m['target_sensitivity']:.0%} sensitivity on out-of-fold predictions) |
+| Decision threshold | {t['threshold']:.3f} (best sensitivity–specificity balance with ≥{m['target_sensitivity']:.0%} sensitivity, from out-of-fold predictions) |
 | Sensitivity (recall) | {t['sensitivity']:.3f} |
 | Specificity | {t['specificity']:.3f} |
 | Precision (PPV) | {t['precision']:.3f} |

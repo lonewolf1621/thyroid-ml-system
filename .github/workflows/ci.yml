@@ -41,7 +41,7 @@ jobs:
       - run: python -m thyroid.data download --out data/hypothyroid.csv
       - run: python -m thyroid.train --data data/hypothyroid.csv --out models --mlflow
       - name: Publish model card to the job summary
-        run: cat models/MODEL_CARD.md >> "$GITHUB_STEP_SUMMARY"
+        run: tee -a "$GITHUB_STEP_SUMMARY" < models/MODEL_CARD.md
       - uses: actions/upload-artifact@v4
         with:
           name: model-package
