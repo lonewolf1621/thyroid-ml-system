@@ -80,6 +80,17 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8000/v1/predict -H 'Content-Type: application/json' -d '{"age":-1}')" = "422"
           curl -fsS localhost:8000/ | grep -q "Thyroid ML System"
           curl -fsS localhost:8000/v1/monitoring/drift | jq .status
+      - name: Latency benchmark (200 sequential requests)
+        run: |
+          body='{"age":61,"sex":"F","TSH":45,"T3":1.0,"TT4":48,"T4U":0.9,"FTI":53,"query_hypothyroid":true}'
+          for i in $(seq 1 20); do curl -s -o /dev/null -X POST localhost:8000/v1/predict -H 'Content-Type: application/json' -d "$body"; done
+          for i in $(seq 1 200); do
+            curl -s -o /dev/null -D - -X POST localhost:8000/v1/predict -H 'Content-Type: application/json' -d "$body" \
+              | grep -i '^x-latency-ms' | awk '{print $2}' | tr -d '\r'
+          done | sort -n > lat.txt
+          p50=$(sed -n '100p' lat.txt); p95=$(sed -n '190p' lat.txt); p99=$(sed -n '198p' lat.txt)
+          echo "server-side latency over 200 requests: p50=${p50} ms p95=${p95} ms p99=${p99} ms"
+          echo "### Latency (server-side, 200 requests): p50 ${p50} ms · p95 ${p95} ms · p99 ${p99} ms" >> "$GITHUB_STEP_SUMMARY"
       - name: Container logs
         if: always()
         run: docker logs api | tail -50
