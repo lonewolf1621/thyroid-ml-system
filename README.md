@@ -88,9 +88,8 @@ Tests: `pip install -r requirements-dev.txt && pytest -q` · Docker: `docker bui
 
 ### Retrain the image model
 
-1. Download TN5000 ([figshare](https://figshare.com/s/cb6a67f17c04b29e7edd)) and put `TN5000_forReview.zip` in your Google Drive.
-2. Open [`notebooks/retrain_image_model_tn5000.ipynb`](notebooks/retrain_image_model_tn5000.ipynb) in Colab with a T4 GPU and run all cells (~15 minutes).
-3. Copy `cancer_efficientnet.pth` and `cancer_efficientnet.json` into `image_models/`.
+1. Open [`notebooks/retrain_image_model_tn5000.ipynb`](https://colab.research.google.com/github/lonewolf1621/thyroid-ml-system/blob/main/notebooks/retrain_image_model_tn5000.ipynb) in Colab with a T4 GPU and run all cells (~15 minutes). It downloads TN5000 from [figshare](https://figshare.com/s/cb6a67f17c04b29e7edd) and verifies its checksum.
+2. Copy `cancer_efficientnet.pth` and `cancer_efficientnet.json` from `My Drive/thyroid_model_v2` into `image_models/`.
 
 Or locally: `python src/train_image_model.py --data TN5000_forReview.zip --out outputs/`
 
@@ -109,7 +108,7 @@ tests/          API and data tests (pytest, run in GitHub Actions)
 ## Data
 
 - Tabular: thyroid disease (hypothyroid) dataset, Garavan Institute / UCI, as distributed on OpenML.
-- Images: TN5000, Zhang H., Liu Q., Han X., Niu L., Sun W. *TN5000: An Ultrasound Image Dataset for Thyroid Nodule Detection and Classification.* Scientific Data 12, 1437 (2025). Not redistributed in this repository.
+- Images: TN5000, Zhang H., Liu Q., Han X., Niu L., Sun W. *TN5000: An Ultrasound Image Dataset for Thyroid Nodule Detection and Classification.* Scientific Data 12, 1437 (2025), CC BY. Downloaded at training time rather than stored in this repository.
 
 ## Limitations
 
