@@ -43,7 +43,14 @@ flowchart LR
 
 The dataset is strongly separable on TSH and FTI, which is why tree models reach ~1.0; LogisticRegression is the more conservative reference point.
 
-**Image model:** being retrained on TN5000's official train/val/test split with [`notebooks/retrain_image_model_tn5000.ipynb`](notebooks/retrain_image_model_tn5000.ipynb). Test-set accuracy, sensitivity, specificity, AUC, the ROC curve and confusion matrix will be published here and at [`/model-card`](https://thyroid-ml-system.onrender.com/model-card) once the run is complete.
+**Image model:** being retrained on TN5000's official train/val/test split with [`notebooks/retrain_image_model_tn5000.ipynb`](notebooks/retrain_image_model_tn5000.ipynb), then evaluated twice:
+
+| Evaluation | Data | Why |
+|---|---|---|
+| Internal | TN5000 test split (1,000 images, never used for training or model selection) | Standard held-out score |
+| **External** | TN3K test set (Gong et al.), a different hospital, scanners and team | How the model generalises to a new source |
+
+Accuracy, balanced accuracy, sensitivity, specificity, AUC, ROC curves and confusion matrices for both will be published here and at [`/model-card`](https://thyroid-ml-system.onrender.com/model-card) once the run is complete.
 
 ## API
 
@@ -99,7 +106,8 @@ Or locally: `python src/train_image_model.py --data TN5000_forReview.zip --out o
 api/            FastAPI app, image model loader, demo page
 models/v1/      Tabular pipelines (RandomForest, XGBoost, LogisticRegression)
 image_models/   EfficientNet-B0 weights (+ model card after retraining)
-src/            Training: train.py (tabular, MLflow), train_image_model.py, tn5000.py
+src/            Training: train.py (tabular, MLflow), train_image_model.py, tn5000.py;
+                external test: evaluate_external.py, tn3k.py
 notebooks/      Colab retraining notebook
 monitoring/     Data drift report (Evidently)
 tests/          API and data tests (pytest, run in GitHub Actions)
@@ -109,6 +117,7 @@ tests/          API and data tests (pytest, run in GitHub Actions)
 
 - Tabular: thyroid disease (hypothyroid) dataset, Garavan Institute / UCI, as distributed on OpenML.
 - Images: TN5000, Zhang H., Liu Q., Han X., Niu L., Sun W. *TN5000: An Ultrasound Image Dataset for Thyroid Nodule Detection and Classification.* Scientific Data 12, 1437 (2025), CC BY. Downloaded at training time rather than stored in this repository.
+- External test: TN3K, Gong H. et al. *Multi-Task Learning for Thyroid Nodule Segmentation with Thyroid Region Prior*, ISBI 2021, with benign/malignant labels from *Less is More: Adaptive Curriculum Learning for Thyroid Nodule Diagnosis*, MICCAI 2022.
 
 ## Limitations
 

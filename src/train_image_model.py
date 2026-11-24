@@ -105,7 +105,7 @@ def metrics(y, p, threshold=0.5):
     }
 
 
-def save_plots(y, p, m, out: Path):
+def save_plots(y, p, m, out: Path, dataset: str = "TN5000 test set", prefix: str = ""):
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -117,10 +117,10 @@ def save_plots(y, p, m, out: Path):
     fig, ax = plt.subplots(figsize=(4.5, 4.5))
     ax.plot(fpr, tpr, lw=2, label=f"AUC = {m['auc']:.3f}")
     ax.plot([0, 1], [0, 1], "--", color="grey", lw=1)
-    ax.set(xlabel="False positive rate", ylabel="True positive rate", title="ROC, TN5000 test set")
+    ax.set(xlabel="False positive rate", ylabel="True positive rate", title=f"ROC, {dataset}")
     ax.legend(loc="lower right")
     fig.tight_layout()
-    fig.savefig(out / "roc.png", dpi=150)
+    fig.savefig(out / f"{prefix}roc.png", dpi=150)
     plt.close(fig)
 
     cm = m["confusion_matrix"]
@@ -132,9 +132,9 @@ def save_plots(y, p, m, out: Path):
                 color="white" if v > grid.max() / 2 else "black")
     ax.set_xticks([0, 1], LABELS)
     ax.set_yticks([0, 1], LABELS)
-    ax.set(xlabel="Predicted", ylabel="Actual", title="Confusion matrix, TN5000 test set")
+    ax.set(xlabel="Predicted", ylabel="Actual", title=f"Confusion matrix, {dataset}")
     fig.tight_layout()
-    fig.savefig(out / "confusion_matrix.png", dpi=150)
+    fig.savefig(out / f"{prefix}confusion_matrix.png", dpi=150)
     plt.close(fig)
 
 
