@@ -3,6 +3,7 @@ name: ML Pipeline
 on:
   push:
     branches: [ main ]
+  pull_request:
 
 jobs:
 
@@ -13,21 +14,22 @@ jobs:
     steps:
 
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.11
+        python-version: "3.11"
+        cache: pip
 
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
 
-    - name: Smoke test models and API
+    - name: Run tests
       run: |
-        python -c "from api.model_registry import load_models; m = load_models(); assert {'RandomForest', 'LogisticRegression', 'XGBoost'} <= set(m), m; print('models ok:', sorted(m))"
-        python -c "from api.main import app, PatientData, predict; r = predict(PatientData(age=55, sex='F', TSH=60, T3=0.5, TT4=40, T4U=1.0, FTI=40)); assert r['prediction'] == 'hypothyroid', r; print(r)"
+        pip install -r requirements-dev.txt
+        pytest -q
 
     - name: Build Docker
       run: |

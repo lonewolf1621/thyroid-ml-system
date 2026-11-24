@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from api.model_registry import MODEL_VERSION, load_models
-from api.image_predict import image_model_loaded, predict_image
+from api.image_predict import image_model_loaded, model_card, predict_image
 from api.demo_page import DEMO_HTML
 
 app = FastAPI(
@@ -126,6 +126,15 @@ def health():
 @app.get("/models")
 def list_models():
     return {"version": MODEL_VERSION, "models": sorted(models), "default": "RandomForest"}
+
+
+@app.get("/model-card")
+def get_model_card():
+    """How the image model was trained and how it scored on held-out data."""
+    card = model_card()
+    if not card:
+        return {"architecture": "efficientnet_b0", "note": "No evaluation card for this model version."}
+    return card
 
 
 @app.post("/predict")

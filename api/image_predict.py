@@ -12,8 +12,20 @@ from PIL import Image, UnidentifiedImageError
 
 from pathlib import Path
 
+import json
+
 MODEL_PATH = Path(__file__).resolve().parents[1] / "image_models" / "cancer_efficientnet.pth"
-LABELS = {0: "benign", 1: "malignant"}  # ImageFolder sorts class folders alphabetically
+# Optional sidecar written by src/train_image_model.py: preprocessing + evaluation metrics.
+CARD_PATH = MODEL_PATH.with_suffix(".json")
+LABELS = {0: "benign", 1: "malignant"}
+
+
+def model_card() -> dict:
+    """Preprocessing and metrics for the deployed weights (empty for the original model)."""
+    try:
+        return json.loads(CARD_PATH.read_text())
+    except (OSError, ValueError):
+        return {}
 
 _model = None
 _transform = None
@@ -39,10 +51,12 @@ def _load():
         model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
         model.eval()
 
-        _transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-        ])
+        card = model_card()
+        size = int(card.get("image_size", 224))
+        steps = [transforms.Resize((size, size)), transforms.ToTensor()]
+        if card.get("normalize"):
+            steps.append(transforms.Normalize(card["normalize"]["mean"], card["normalize"]["std"]))
+        _transform = transforms.Compose(steps)
         _torch = torch
         _model = model
 
