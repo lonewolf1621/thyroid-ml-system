@@ -1,5 +1,9 @@
 # Thyroid ML System
 
+> **Live demo:** [thyroid-ml-system.onrender.com](https://thyroid-ml-system.onrender.com) · **API docs:** [/docs](https://thyroid-ml-system.onrender.com/docs) · free tier, the first request can take ~1 minute to wake the server and the first image prediction loads the model (~20 s). Research demo, not for clinical use.
+>
+> Endpoints: `POST /predict?model_name=RandomForest|XGBoost|LogisticRegression` (returns `prediction` = `hypothyroid`/`negative` and `probability_hypothyroid`), `POST /predict-image` (EfficientNet-B0, benign/malignant), `GET /health`, `GET /models`.
+
 This project is an end-to-end machine learning system for predicting thyroid disease using both structured clinical data and medical images. The goal was to move beyond a simple model and build something closer to a real-world ML application, including training pipelines, APIs, monitoring, and deployment.
 
 ---
@@ -67,6 +71,8 @@ pip install -r requirements.txt
 Run the API:
 
 python -m uvicorn api.main:app --reload
+
+Then open http://localhost:8000 for the demo page. Use Python 3.11; training extras (MLflow, Evidently) are in requirements-train.txt.
 
 Then open:
 
