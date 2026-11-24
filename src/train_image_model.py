@@ -18,6 +18,7 @@ import json
 import random
 import sys
 import time
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -147,6 +148,7 @@ def main():
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--extract-dir", default="/tmp/tn5000", help="where a zip given as --data is unpacked")
     args = ap.parse_args()
 
     random.seed(args.seed)
@@ -156,7 +158,17 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    index = TN5000Index(args.data)
+    data = Path(args.data)
+    if data.suffix == ".zip":
+        # Unpack once so DataLoader workers read plain files, not a shared zip.
+        target = Path(args.extract_dir)
+        if not any(target.rglob("ImageSets/Main/test.txt")):
+            print(f"Extracting {data.name} to {target} ...")
+            target.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(data) as z:
+                z.extractall(target)
+        data = next(target.rglob("ImageSets/Main/test.txt")).parents[2]
+    index = TN5000Index(data)
     t_train, t_eval = build_transforms()
     ds = {s: TN5000Dataset(index, s, t_train if s == "train" else t_eval) for s in ("train", "val", "test")}
     for s, d in ds.items():
@@ -179,7 +191,7 @@ def main():
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-    scaler = torch.cuda.amp.GradScaler(enabled=device.type == "cuda")
+    scaler = torch.amp.GradScaler("cuda", enabled=device.type == "cuda")
 
     best_auc, best_state, history = -1.0, None, []
     for epoch in range(1, args.epochs + 1):
