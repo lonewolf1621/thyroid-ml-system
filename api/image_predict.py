@@ -79,22 +79,19 @@ def _gradcam_png(img, class_idx: int, original: Image.Image) -> str:
     acts = {}
 
     def keep(_module, _inp, out):
-        out.retain_grad()
         acts["a"] = out
 
     handle = _model.features[-1].register_forward_hook(keep)
     try:
         with torch.enable_grad():
-            x = img.clone().requires_grad_(True)
-            logits = _model(x)
-            _model.zero_grad()
-            logits[0, class_idx].backward()
+            logits = _model(img.clone().requires_grad_(True))
+            (grad,) = torch.autograd.grad(logits[0, class_idx], acts["a"])
     finally:
         handle.remove()
 
-    a = acts["a"][0]                       # C x h x w
-    weights = a.grad.mean(dim=(1, 2))       # C
-    cam = torch.relu((weights[:, None, None] * a).sum(0)).detach().numpy()
+    a = acts["a"][0].detach()              # C x h x w
+    weights = grad[0].mean(dim=(1, 2))      # C
+    cam = torch.relu((weights[:, None, None] * a).sum(0)).numpy()
     if cam.max() > 0:
         cam = cam / cam.max()
 
