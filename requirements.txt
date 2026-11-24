@@ -1,18 +1,18 @@
 # Runtime dependencies for the API (Python 3.11). Training extras: requirements-train.txt
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-fastapi==0.115.6
-uvicorn==0.32.1
-python-multipart==0.0.20
+fastapi==0.165.0
+uvicorn==0.54.0
+python-multipart==0.0.34
 
 # Must match the versions the pickled pipelines were saved with
-scikit-learn==1.8.0
+scikit-learn==1.9.1
 xgboost>=3.0,<4
 joblib>=1.4
 pandas==2.2.3
 numpy>=2.0,<2.3
 
 # Image model (CPU-only wheels keep the install small)
-torch==2.5.1+cpu
-torchvision==0.20.1+cpu
+torch==2.15.0+cpu
+torchvision==0.29.2+cpu
 pillow>=10.4
