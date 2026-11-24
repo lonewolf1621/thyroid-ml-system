@@ -84,11 +84,22 @@ DEMO_HTML = """<!DOCTYPE html>
       <h2>Thyroid image → benign / malignant</h2>
       <form id="img">
         <label>Image (JPG or PNG)<input name="file" type="file" accept="image/*" required></label>
+        <label><input type="checkbox" name="explain" checked>Show Grad-CAM heatmap (where the model looked)</label>
         <button id="imgBtn" type="submit">Classify image</button>
       </form>
       <div class="result" id="imgOut">The first image request loads the model, so it can take ~30 seconds.</div>
     </section>
   </div>
+
+  <section>
+    <h2>Batch: score a CSV of patients</h2>
+    <p>One patient per row, up to 1000 rows. Start from the <a href="/predict/batch/template">CSV template</a>.</p>
+    <form id="batch">
+      <label>CSV file<input name="file" type="file" accept=".csv,text/csv" required></label>
+      <button id="batchBtn" type="submit">Score CSV (RandomForest)</button>
+    </form>
+    <div class="result" id="batchOut">Results and a download link appear here.</div>
+  </section>
 
   <footer>
     API docs: <a href="/docs">/docs</a> ·
@@ -128,15 +139,38 @@ document.getElementById('tab').addEventListener('submit', async (e) => {
 document.getElementById('img').addEventListener('submit', async (e) => {
   e.preventDefault();
   const out = document.getElementById('imgOut'), btn = document.getElementById('imgBtn');
-  const fd = new FormData(e.target);
+  const fd = new FormData(); fd.append('file', e.target.file.files[0]);
+  const explain = e.target.explain.checked;
   btn.disabled = true; out.textContent = 'Classifying… (first request loads the model)';
   try {
-    const r = await fetch('/predict-image', {method:'POST', body: fd});
+    const r = await fetch('/predict-image' + (explain ? '?explain=true' : ''), {method:'POST', body: fd});
     const j = await r.json();
     if (!r.ok) throw new Error(j.detail || 'Request failed');
     out.innerHTML = '<div class="big">' + j.prediction[0].toUpperCase() + j.prediction.slice(1) + '</div>'
       + 'Confidence: <b>' + pct(j.confidence) + '</b>' + bar(j.confidence)
-      + '<div style="margin-top:6px;color:#5b6578">' + j.model + '</div>';
+      + '<div style="margin-top:6px;color:#5b6578">' + j.model + '</div>'
+      + (j.gradcam_png_base64 ? '<img alt="Grad-CAM heatmap" style="max-width:100%;margin-top:10px;border-radius:6px" src="data:image/png;base64,'
+         + j.gradcam_png_base64 + '"><div style="color:#5b6578;font-size:13px">' + j.gradcam_note + '</div>' : '');
+  } catch (err) { out.textContent = 'Error: ' + err.message; }
+  btn.disabled = false;
+});
+
+document.getElementById('batch').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const out = document.getElementById('batchOut'), btn = document.getElementById('batchBtn');
+  const file = e.target.file.files[0];
+  btn.disabled = true; out.textContent = 'Scoring…';
+  try {
+    const fd = new FormData(); fd.append('file', file);
+    const r = await fetch('/predict/batch', {method:'POST', body: fd});
+    const j = await r.json();
+    if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail));
+    const fd2 = new FormData(); fd2.append('file', file);
+    const csv = await (await fetch('/predict/batch?output=csv', {method:'POST', body: fd2})).blob();
+    const url = URL.createObjectURL(csv);
+    out.innerHTML = '<div class="big">' + j.scored + ' scored · ' + j.hypothyroid + ' flagged hypothyroid</div>'
+      + (j.errors.length ? '<div>' + j.errors.length + ' row(s) had errors, e.g. row ' + j.errors[0].row + ': ' + j.errors[0].errors[0] + '</div>' : '')
+      + '<a download="thyroid_predictions.csv" href="' + url + '">Download predictions (CSV)</a>';
   } catch (err) { out.textContent = 'Error: ' + err.message; }
   btn.disabled = false;
 });

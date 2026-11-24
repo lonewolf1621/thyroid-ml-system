@@ -65,7 +65,53 @@ def image_model_loaded() -> bool:
     return _model is not None
 
 
-async def predict_image(file: UploadFile):
+def _gradcam_png(img, class_idx: int, original: Image.Image) -> str:
+    """Grad-CAM over the last EfficientNet feature block, overlaid on the image.
+
+    Returns a base64 PNG. Red areas are the regions that pushed the model
+    towards the predicted class.
+    """
+    import base64
+
+    import numpy as np
+
+    torch = _torch
+    acts = {}
+
+    def keep(_module, _inp, out):
+        out.retain_grad()
+        acts["a"] = out
+
+    handle = _model.features[-1].register_forward_hook(keep)
+    try:
+        with torch.enable_grad():
+            x = img.clone().requires_grad_(True)
+            logits = _model(x)
+            _model.zero_grad()
+            logits[0, class_idx].backward()
+    finally:
+        handle.remove()
+
+    a = acts["a"][0]                       # C x h x w
+    weights = a.grad.mean(dim=(1, 2))       # C
+    cam = torch.relu((weights[:, None, None] * a).sum(0)).detach().numpy()
+    if cam.max() > 0:
+        cam = cam / cam.max()
+
+    base = original.convert("RGB")
+    base.thumbnail((448, 448))
+    heat = Image.fromarray(np.uint8(cam * 255)).resize(base.size, Image.BILINEAR)
+    h = np.asarray(heat, dtype=np.float32) / 255.0
+    colour = np.stack([h, np.zeros_like(h), 1.0 - h], axis=-1) * 255  # blue (low) -> red (high)
+    alpha = (0.15 + 0.45 * h)[..., None]
+    blend = np.asarray(base, dtype=np.float32) * (1 - alpha) + colour * alpha
+    out = Image.fromarray(np.uint8(blend.clip(0, 255)))
+    buf = io.BytesIO()
+    out.save(buf, "PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+async def predict_image(file: UploadFile, explain: bool = False):
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Empty file")
@@ -82,9 +128,14 @@ async def predict_image(file: UploadFile):
         probs = _torch.softmax(_model(img), dim=1)[0]
 
     pred = int(_torch.argmax(probs).item())
-    return {
+    result = {
         "prediction": LABELS[pred],
         "confidence": round(float(probs[pred]), 4),
         "probabilities": {LABELS[i]: round(float(p), 4) for i, p in enumerate(probs)},
         "model": "EfficientNet-B0 (transfer learning)",
     }
+    if explain:
+        result["gradcam_png_base64"] = _gradcam_png(img, pred, image)
+        result["gradcam_note"] = ("Grad-CAM on the last feature block: red marks the regions that "
+                                  "most increased the predicted class score. A sanity check, not a diagnosis.")
+    return result

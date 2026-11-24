@@ -3,8 +3,11 @@ import logging
 import os
 
 import pandas as pd
+import io
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
+from pydantic import ValidationError
 from pydantic import BaseModel, Field
 
 from api.model_registry import MODEL_VERSION, load_models
@@ -167,9 +170,85 @@ def predict(data: PatientData, model_name: str = "RandomForest"):
     }
 
 
+MAX_BATCH_ROWS = 1000
+MAX_BATCH_BYTES = 2 * 1024 * 1024
+
+
+@app.get("/predict/batch/template", include_in_schema=True)
+def batch_template():
+    """A CSV with the expected columns and two example rows."""
+    cols = list(PatientData.model_fields)
+    rows = [{**PatientData(age=45, sex="F", TSH=1.3, T3=2.0, TT4=110, T4U=1.0, FTI=110).model_dump()},
+            {**PatientData(age=55, sex="F", TSH=60, T3=0.5, TT4=40, T4U=1.0, FTI=40).model_dump()}]
+    csv = pd.DataFrame(rows, columns=cols).to_csv(index=False)
+    return Response(csv, media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=thyroid_batch_template.csv"})
+
+
+@app.post("/predict/batch")
+async def predict_batch(file: UploadFile = File(..., description="CSV, one patient per row (max 1000 rows)"),
+                        model_name: str = "RandomForest", output: Literal["json", "csv"] = "json"):
+    """Score many patients at once from a CSV.
+
+    Columns use the API field names (see /predict/batch/template); dataset
+    names with spaces are accepted too. Missing optional flags default to the
+    same values as /predict. Rows that fail validation are reported, not scored.
+    """
+    if model_name not in models:
+        raise HTTPException(status_code=404, detail=f"Model not found. Available: {sorted(models)}")
+    data = await file.read()
+    if len(data) > MAX_BATCH_BYTES:
+        raise HTTPException(status_code=413, detail="CSV larger than 2 MB")
+    try:
+        raw = pd.read_csv(io.BytesIO(data), dtype=str, keep_default_na=False)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not parse the file as CSV")
+    if raw.empty:
+        raise HTTPException(status_code=400, detail="CSV has no rows")
+    if len(raw) > MAX_BATCH_ROWS:
+        raise HTTPException(status_code=413, detail=f"At most {MAX_BATCH_ROWS} rows per request")
+    raw.columns = [c.strip().replace(" ", "_") for c in raw.columns]
+
+    valid, results, errors = [], [], []
+    for i, rec in enumerate(raw.to_dict(orient="records"), start=1):
+        rec = {k: v.strip() for k, v in rec.items() if k in PatientData.model_fields and str(v).strip() != ""}
+        try:
+            valid.append((i, PatientData(**rec)))
+        except ValidationError as e:
+            errors.append({"row": i, "errors": [f"{'.'.join(map(str, err['loc']))}: {err['msg']}"
+                                                for err in e.errors()]})
+
+    if valid:
+        frame = pd.concat([to_frame(p) for _, p in valid], ignore_index=True)
+        model = models[model_name]
+        proba = model.predict_proba(frame)[:, list(model.classes_).index(HYPOTHYROID_CLASS)]
+        for (row, _), p in zip(valid, proba):
+            results.append({"row": row, "prediction": "hypothyroid" if p >= 0.5 else "negative",
+                            "probability_hypothyroid": round(float(p), 4)})
+
+    logging.info({"model": model_name, "batch_rows": len(raw), "scored": len(results), "errors": len(errors)})
+    if output == "csv":
+        out = pd.DataFrame(results + [{"row": e["row"], "prediction": "error",
+                                       "probability_hypothyroid": None, "error": "; ".join(e["errors"])}
+                                      for e in errors]).sort_values("row")
+        return Response(out.to_csv(index=False), media_type="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=thyroid_predictions.csv"})
+    return {
+        "model": model_name,
+        "model_version": MODEL_VERSION,
+        "rows": len(raw),
+        "scored": len(results),
+        "hypothyroid": sum(r["prediction"] == "hypothyroid" for r in results),
+        "results": results,
+        "errors": errors,
+        "disclaimer": "Research demo only. Not for clinical use.",
+    }
+
+
 @app.post("/predict-image")
-async def predict_image_api(file: UploadFile = File(...)):
-    result = await predict_image(file)
+async def predict_image_api(file: UploadFile = File(...), explain: bool = False):
+    """Benign vs malignant. Add ?explain=true for a Grad-CAM heatmap (base64 PNG)."""
+    result = await predict_image(file, explain=explain)
     logging.info({"model": "efficientnet_b0", "prediction": result["prediction"],
                   "confidence": result["confidence"]})
     result["disclaimer"] = "Research demo only. Not for clinical use."

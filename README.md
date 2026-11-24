@@ -1,5 +1,7 @@
 # Thyroid ML System
 
+[![tests](https://github.com/lonewolf1621/thyroid-ml-system/actions/workflows/ml_pipeline.yml/badge.svg)](https://github.com/lonewolf1621/thyroid-ml-system/actions/workflows/ml_pipeline.yml) [![uptime](https://github.com/lonewolf1621/thyroid-ml-system/actions/workflows/uptime.yml/badge.svg)](https://github.com/lonewolf1621/thyroid-ml-system/actions/workflows/uptime.yml)
+
 End-to-end ML system for thyroid disease: **hypothyroidism risk from clinical lab values** (scikit-learn / XGBoost pipelines) and **benign vs malignant classification of thyroid ultrasound images** (EfficientNet-B0), served with FastAPI, tested in CI and deployed on Render.
 
 **Live demo:** [thyroid-ml-system.onrender.com](https://thyroid-ml-system.onrender.com) · **API docs:** [/docs](https://thyroid-ml-system.onrender.com/docs)
@@ -12,7 +14,8 @@ End-to-end ML system for thyroid disease: **hypothyroidism risk from clinical la
 | Input | Model | Output |
 |---|---|---|
 | 28 clinical fields (age, sex, TSH, T3, TT4, T4U, FTI, medication/history flags) | RandomForest, XGBoost or LogisticRegression, each a full scikit-learn `Pipeline` (imputation, scaling, one-hot encoding) | `hypothyroid` / `negative` + probability |
-| Thyroid ultrasound image (JPG/PNG) | EfficientNet-B0, ImageNet transfer learning | `benign` / `malignant` + class probabilities |
+| Thyroid ultrasound image (JPG/PNG) | EfficientNet-B0, ImageNet transfer learning | `benign` / `malignant` + class probabilities, optional **Grad-CAM heatmap** showing which regions drove the prediction |
+| CSV of up to 1,000 patients | Any of the three tabular models | Per-row label and probability (JSON or downloadable CSV); invalid rows are reported with the reason instead of failing the whole file |
 
 ## Architecture
 
@@ -70,7 +73,9 @@ The dataset is strongly separable on TSH and FTI, which is why tree models reach
 |---|---|---|
 | `GET` | `/` | Demo page |
 | `POST` | `/predict?model_name=RandomForest\|XGBoost\|LogisticRegression` | Tabular prediction |
-| `POST` | `/predict-image` | Image prediction (multipart `file`) |
+| `POST` | `/predict-image?explain=true` | Image prediction (multipart `file`); `explain=true` adds a Grad-CAM overlay as a base64 PNG |
+| `POST` | `/predict/batch?model_name=…&output=json\|csv` | Score a CSV of patients (multipart `file`, max 1,000 rows / 2 MB) |
+| `GET` | `/predict/batch/template` | CSV template with the expected columns and two example rows |
 | `GET` | `/models` | Available tabular models and version |
 | `GET` | `/model-card` | How the image model was trained and how it scored |
 | `GET` | `/health` | Status, loaded models |
@@ -92,6 +97,17 @@ Only the lab values, age and sex are required; flags default to `"f"`. Inputs ar
 - **Fits a 512 MB instance:** PyTorch and the image weights load on the first image request, so the tabular API starts instantly.
 - **Model card:** retrained weights ship with `cancer_efficientnet.json` (preprocessing, training settings, val/test metrics); the API reads normalisation from it, so new weights drop in without code changes.
 - **Privacy:** prediction logs contain model inputs and outputs only, no names or identifiers.
+- **Explainability:** Grad-CAM on the last EfficientNet feature block, computed on request so normal predictions stay fast. It shows where the model looked; it is a sanity check, not a localisation of the nodule.
+
+## Running without anyone's laptop
+
+| Workflow | When | What it does |
+|---|---|---|
+| [`ML Pipeline`](.github/workflows/ml_pipeline.yml) | every push, every PR, weekly | pytest (all three tabular models, image model, Grad-CAM, batch CSV) + Docker build |
+| [`uptime`](.github/workflows/uptime.yml) | every 6 hours | Smoke-tests the live API: health, every tabular model on a normal and a hypothyroid profile, batch CSV, image + Grad-CAM. A failure opens a GitHub issue labelled `uptime`; the next passing run closes it. |
+| [`keep-warm`](.github/workflows/keep-warm.yml) | every 10 min, 07:00–20:00 UTC Mon–Fri | Keeps the API out of Render's free-tier sleep during UK working hours, within the 750 free instance hours a month |
+| [`workflow-keepalive`](.github/workflows/workflow-keepalive.yml) | twice a month | Stops GitHub pausing the scheduled workflows after 60 quiet days |
+| [Dependabot](.github/dependabot.yml) | monthly | pip, Docker and Actions update PRs, each checked by CI |
 
 ## Run locally
 
@@ -115,7 +131,8 @@ Or locally: `python src/train_image_model.py --data TN5000_forReview.zip --out o
 ## Project structure
 
 ```
-api/            FastAPI app, image model loader, demo page
+api/            FastAPI app, image model + Grad-CAM, batch CSV scoring, demo page
+scripts/        Live smoke test used by the uptime workflow
 models/v1/      Tabular pipelines (RandomForest, XGBoost, LogisticRegression)
 image_models/   EfficientNet-B0 weights (+ model card after retraining)
 src/            Training: train.py (tabular, MLflow), train_image_model.py, tn5000.py;
