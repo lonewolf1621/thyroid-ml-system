@@ -43,14 +43,26 @@ flowchart LR
 
 The dataset is strongly separable on TSH and FTI, which is why tree models reach ~1.0; LogisticRegression is the more conservative reference point.
 
-**Image model:** being retrained on TN5000's official train/val/test split with [`notebooks/retrain_image_model_tn5000.ipynb`](notebooks/retrain_image_model_tn5000.ipynb), then evaluated twice:
+**Image model** (EfficientNet-B0, ImageNet transfer learning, trained on TN5000's official train split, best epoch chosen on its validation split):
 
-| Evaluation | Data | Why |
+| | Internal test: TN5000 | **External test: TN3K** |
 |---|---|---|
-| Internal | TN5000 test split (1,000 images, never used for training or model selection) | Standard held-out score |
-| **External** | TN3K test set (Gong et al.), a different hospital, scanners and team | How the model generalises to a new source |
+| Images (malignant / benign) | 1,000 (731 / 269) | 614 (236 / 378) |
+| Source | Same dataset as training, never used for training or model selection | **Different hospital, scanners and team**; never seen in training |
+| ROC-AUC | **0.930** | **0.803** |
+| Accuracy | 87.3% (majority-class baseline 73.1%) | 73.8% (baseline 61.6%) |
+| Balanced accuracy | 83.0% | 74.0% |
+| Sensitivity (malignant caught) | 92.3% | 75.0% |
+| Specificity (benign cleared) | 73.6% | 73.0% |
 
-Accuracy, balanced accuracy, sensitivity, specificity, AUC, ROC curves and confusion matrices for both will be published here and at [`/model-card`](https://thyroid-ml-system.onrender.com/model-card) once the run is complete.
+<p>
+<img src="docs/results/tn5000_roc.png" width="230"> <img src="docs/results/tn5000_confusion_matrix.png" width="230">
+<img src="docs/results/tn3k_roc.png" width="230"> <img src="docs/results/tn3k_confusion_matrix.png" width="230">
+</p>
+
+**What the numbers say:** the model separates benign from malignant nodules well on new images from the same source (AUC 0.93) and keeps real signal on a completely independent dataset (AUC 0.80), with the drop that is typical when ultrasound models change hospital and scanner. Sensitivity falls from 92% to 75% externally, so the model would need recalibration or fine-tuning on local data before it could be trusted anywhere new. That is why the external test is reported rather than only the internal one.
+
+*An earlier version of this model scored ~95% on TN5000, but its training images could not be traced and likely overlapped with this test set, so it was retrained from scratch on the official split. Full metrics: [`docs/results/metrics.json`](docs/results/metrics.json), also served at [`/model-card`](https://thyroid-ml-system.onrender.com/model-card).*
 
 ## API
 
