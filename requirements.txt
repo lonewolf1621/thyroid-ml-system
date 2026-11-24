@@ -10,7 +10,7 @@ scikit-learn==1.8.0
 xgboost>=3.0,<4
 joblib>=1.4
 pandas==2.2.3
-numpy>=2.0,<2.3
+numpy>=2.4.6,<2.5
 
 # Image model (CPU-only wheels keep the install small)
 torch==2.5.1+cpu
