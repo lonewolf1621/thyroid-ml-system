@@ -9,6 +9,7 @@ This module has no PyTorch dependency so it can be tested anywhere.
 """
 from __future__ import annotations
 
+import os
 import re
 import zipfile
 from pathlib import Path
@@ -31,11 +32,29 @@ class TN5000Index:
 
     def __init__(self, source: str | Path):
         self.source = Path(source)
-        self._zip = zipfile.ZipFile(self.source) if self.source.suffix == ".zip" else None
+        self.is_zip = self.source.suffix == ".zip"
+        self._zip_handle = None
+        self._zip_pid = None
         self.root = self._find_root()
 
+    @property
+    def _zip(self):
+        """Zip handle opened per process: DataLoader workers must not share one."""
+        if not self.is_zip:
+            return None
+        if self._zip_handle is None or self._zip_pid != os.getpid():
+            self._zip_handle = zipfile.ZipFile(self.source)
+            self._zip_pid = os.getpid()
+        return self._zip_handle
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["_zip_handle"] = None
+        state["_zip_pid"] = None
+        return state
+
     def _find_root(self) -> str:
-        if self._zip:
+        if self.is_zip:
             for name in self._zip.namelist():
                 if name.endswith("ImageSets/Main/test.txt"):
                     return name[: -len("ImageSets/Main/test.txt")]
@@ -46,7 +65,7 @@ class TN5000Index:
         raise FileNotFoundError("Could not find ImageSets/Main/test.txt in " + str(self.source))
 
     def read(self, rel: str) -> bytes:
-        if self._zip:
+        if self.is_zip:
             return self._zip.read(self.root + rel)
         return (Path(self.root) / rel).read_bytes()
 
