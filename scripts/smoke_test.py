@@ -58,6 +58,15 @@ def main():
             raise SystemExit(f"FAIL /health not ok after 300s (last error: {last})")
         time.sleep(10)
     print(f"OK   /health after {time.time() - start:.0f}s: {health}")
+    for path in ("/admin/api/stats", "/admin/api/settings"):
+        try:
+            call(base + path)
+            raise SystemExit(f"FAIL {path} answered without an admin token")
+        except urllib.error.HTTPError as e:
+            if e.code not in (401, 403):
+                raise SystemExit(f"FAIL {path} returned {e.code}")
+    status_body, _ = call(f"{base}/status")
+    print(f"OK   admin API locked; status: {status_body}")
 
     problems = []
     for model in health.get("tabular_models", []):
