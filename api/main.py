@@ -5,7 +5,9 @@ import os
 import pandas as pd
 import io
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+import time
+
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
 from pydantic import ValidationError
 from pydantic import BaseModel, Field
@@ -13,6 +15,8 @@ from pydantic import BaseModel, Field
 from api.model_registry import MODEL_VERSION, load_models
 from api.image_predict import image_model_loaded, model_card, predict_image
 from api.demo_page import DEMO_HTML
+from api.admin_page import ADMIN_HTML
+from api import admin
 
 app = FastAPI(
     title="Thyroid ML System",
@@ -23,6 +27,20 @@ app = FastAPI(
     ),
     version="2.0.0",
 )
+
+@app.middleware("http")
+async def _metrics(request: Request, call_next):
+    start = time.perf_counter()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        route = request.scope.get("route")
+        admin.record_request(request.method, getattr(route, "path", request.url.path), status,
+                             (time.perf_counter() - start) * 1000)
+
 
 # -----------------------------
 # Logging (no names or identifiers are collected)
@@ -142,6 +160,7 @@ def get_model_card():
 
 @app.post("/predict")
 def predict(data: PatientData, model_name: str = "RandomForest"):
+    admin.feature_on("tabular_enabled")
     if model_name not in models:
         raise HTTPException(status_code=404, detail=f"Model not found. Available: {sorted(models)}")
 
@@ -161,6 +180,8 @@ def predict(data: PatientData, model_name: str = "RandomForest"):
         "input": data.model_dump(),
     })
 
+    admin.count(f"tabular:{model_name}:{label}")
+    admin.log_event("prediction_tabular", model=model_name, prediction=label, probability=round(p_hypo, 4))
     return {
         "model": model_name,
         "model_version": MODEL_VERSION,
@@ -194,6 +215,7 @@ async def predict_batch(file: UploadFile = File(..., description="CSV, one patie
     names with spaces are accepted too. Missing optional flags default to the
     same values as /predict. Rows that fail validation are reported, not scored.
     """
+    admin.feature_on("batch_enabled")
     if model_name not in models:
         raise HTTPException(status_code=404, detail=f"Model not found. Available: {sorted(models)}")
     data = await file.read()
@@ -227,6 +249,9 @@ async def predict_batch(file: UploadFile = File(..., description="CSV, one patie
                             "probability_hypothyroid": round(float(p), 4)})
 
     logging.info({"model": model_name, "batch_rows": len(raw), "scored": len(results), "errors": len(errors)})
+    admin.count("batch:files"); admin.count("batch:rows_scored", len(results)); admin.count("batch:rows_invalid", len(errors))
+    admin.log_event("prediction_batch", model=model_name, rows=len(raw), scored=len(results), invalid=len(errors),
+                    flagged=sum(r["prediction"] == "hypothyroid" for r in results))
     if output == "csv":
         out = pd.DataFrame(results + [{"row": e["row"], "prediction": "error",
                                        "probability_hypothyroid": None, "error": "; ".join(e["errors"])}
@@ -248,8 +273,75 @@ async def predict_batch(file: UploadFile = File(..., description="CSV, one patie
 @app.post("/predict-image")
 async def predict_image_api(file: UploadFile = File(...), explain: bool = False):
     """Benign vs malignant. Add ?explain=true for a Grad-CAM heatmap (base64 PNG)."""
+    admin.feature_on("image_enabled")
     result = await predict_image(file, explain=explain)
+    admin.count(f"image:{result['prediction']}")
+    admin.log_event("prediction_image", prediction=result["prediction"], confidence=result["confidence"],
+                    gradcam=bool(explain))
     logging.info({"model": "efficientnet_b0", "prediction": result["prediction"],
                   "confidence": result["confidence"]})
     result["disclaimer"] = "Research demo only. Not for clinical use."
     return result
+
+
+# -----------------------------
+# Owner admin (ADMIN_TOKEN)
+# -----------------------------
+class AdminSettings(BaseModel):
+    maintenance_banner: str | None = Field(None, max_length=300)
+    tabular_enabled: bool | None = None
+    batch_enabled: bool | None = None
+    image_enabled: bool | None = None
+
+
+@app.get("/status")
+def public_status():
+    """Public: maintenance banner and which features are on."""
+    return admin.settings
+
+
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+def admin_home():
+    return ADMIN_HTML
+
+
+@app.get("/admin/api/stats", dependencies=[Depends(admin.require_admin)])
+def admin_stats():
+    return {
+        "uptime_seconds": admin.uptime_seconds(),
+        "model_version": MODEL_VERSION,
+        "tabular_models": sorted(models),
+        "image_model_loaded": image_model_loaded(),
+        "counters": admin.counters(),
+        "endpoints": admin.endpoint_stats(),
+        "events": admin.event_counts(),
+    }
+
+
+@app.get("/admin/api/logs", dependencies=[Depends(admin.require_admin)])
+def admin_logs(kind: str = "events", limit: int = 100):
+    if kind not in ("events", "requests"):
+        raise HTTPException(status_code=422, detail="kind must be 'events' or 'requests'")
+    return {"kind": kind, "items": admin.recent(min(max(limit, 1), 300), kind)}
+
+
+@app.get("/admin/api/settings", dependencies=[Depends(admin.require_admin)])
+def admin_get_settings():
+    return admin.settings
+
+
+@app.put("/admin/api/settings", dependencies=[Depends(admin.require_admin)])
+def admin_put_settings(body: AdminSettings):
+    changes = {k: v for k, v in body.model_dump().items() if v is not None}
+    admin.settings.update(changes)
+    admin.log_event("admin_changed_settings", **{k: str(v) for k, v in changes.items()})
+    return admin.settings
+
+
+@app.post("/admin/api/reset-stats", dependencies=[Depends(admin.require_admin)])
+def admin_reset(confirm: str = ""):
+    if confirm != "RESET":
+        raise HTTPException(status_code=422, detail="Pass ?confirm=RESET to clear usage statistics")
+    admin.reset_metrics()
+    admin.log_event("admin_reset_stats")
+    return {"ok": True}

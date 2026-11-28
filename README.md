@@ -99,6 +99,16 @@ Only the lab values, age and sex are required; flags default to `"f"`. Inputs ar
 - **Privacy:** prediction logs contain model inputs and outputs only, no names or identifiers.
 - **Explainability:** Grad-CAM on the last EfficientNet feature block, computed on request so normal predictions stay fast. It shows where the model looked; it is a sanity check, not a localisation of the nodule.
 
+## Owner admin
+
+`/admin` is an owner dashboard (and `/admin/api/*` its API):
+
+- **Usage:** predictions per model and outcome, batch rows scored, image predictions, requests, 5xx errors and p50/p95 latency per endpoint, uptime
+- **Logs:** prediction events (model, outcome, probability; never the lab values) and recent requests
+- **Maintenance:** a banner on the demo page, switches for lab-value, batch and image predictions (switched-off features answer 503 with the banner text), and reset statistics
+
+Access needs `ADMIN_TOKEN` (24+ characters) set only in Render; the page keeps it in memory and sends it as `X-Admin-Token`. Without it admin is disabled; wrong tokens are rate-limited and logged. The service has no user accounts, so there is no user management.
+
 ## Running without anyone's laptop
 
 | Workflow | When | What it does |

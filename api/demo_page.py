@@ -38,6 +38,7 @@ DEMO_HTML = """<!DOCTYPE html>
 <body>
 <main>
   <h1>Thyroid ML System</h1>
+  <div id="banner" style="display:none;background:#fff4d6;border:1px solid #f0d58c;border-radius:8px;padding:8px 12px;margin:8px 0"></div>
   <p class="sub">Hypothyroidism risk from lab values (scikit-learn / XGBoost pipelines) and benign vs malignant
   classification of thyroid images (EfficientNet-B0), served with FastAPI.</p>
   <div class="note">Portfolio research demo. Not a medical device and not for clinical decisions.</div>
@@ -107,6 +108,9 @@ DEMO_HTML = """<!DOCTYPE html>
   </footer>
 </main>
 <script>
+fetch('/status').then(r => r.json()).then(s => {
+  if (s.maintenance_banner) { const b = document.getElementById('banner'); b.textContent = '📢 ' + s.maintenance_banner; b.style.display = 'block'; }
+}).catch(() => {});
 const BOOLS = ["on_thyroxine","on_antithyroid_medication","thyroid_surgery","I131_treatment",
   "query_hypothyroid","query_hyperthyroid","goitre","pregnant","sick","lithium"];
 const PRESETS = {

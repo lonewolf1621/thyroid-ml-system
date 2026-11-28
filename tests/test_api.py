@@ -97,3 +97,52 @@ def test_batch_reports_bad_rows_and_csv_output():
 def test_batch_rejects_non_csv():
     r = client.post("/predict/batch", files={"file": ("p.csv", b"", "text/csv")})
     assert r.status_code == 400
+
+
+# ----------------------------- owner admin
+ADMIN_TOKEN = "test-admin-token-" + "y" * 24
+AH = {"X-Admin-Token": ADMIN_TOKEN}
+
+
+def _admin_env(monkeypatch):
+    from api import admin
+    monkeypatch.setenv("ADMIN_TOKEN", ADMIN_TOKEN)
+    admin._failures.clear()
+    admin.settings.update(admin.DEFAULT_SETTINGS)
+    return admin
+
+
+def test_admin_requires_token(monkeypatch):
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    assert client.get("/admin/api/stats", headers=AH).status_code == 403
+    admin = _admin_env(monkeypatch)
+    assert client.get("/admin/api/stats").status_code == 401
+    assert client.get("/admin/api/stats", headers={"X-Admin-Token": "nope" * 8}).status_code == 401
+    assert client.get("/admin").status_code == 200
+    admin._failures.clear()
+
+
+def test_admin_stats_count_predictions_and_logs_hide_inputs(monkeypatch):
+    _admin_env(monkeypatch)
+    client.post("/predict", json=NORMAL)
+    stats = client.get("/admin/api/stats", headers=AH).json()
+    assert any(k.startswith("tabular:RandomForest:") for k in stats["counters"])
+    assert any(e["endpoint"] == "POST /predict" for e in stats["endpoints"])
+    items = client.get("/admin/api/logs?kind=events", headers=AH).json()["items"]
+    ev = next(i for i in items if i["type"] == "prediction_tabular")
+    assert "input" not in ev and "TSH" not in str(ev)
+
+
+def test_admin_can_switch_features_off(monkeypatch):
+    admin = _admin_env(monkeypatch)
+    r = client.put("/admin/api/settings", headers=AH, json={"maintenance_banner": "Model update tonight", "image_enabled": False})
+    assert r.status_code == 200
+    assert client.get("/status").json()["maintenance_banner"] == "Model update tonight"
+    buf = io.BytesIO()
+    Image.new("L", (64, 64), color=90).save(buf, "PNG")
+    blocked = client.post("/predict-image", files={"file": ("x.png", buf.getvalue(), "image/png")})
+    assert blocked.status_code == 503 and blocked.json()["detail"] == "Model update tonight"
+    assert client.post("/predict", json=NORMAL).status_code == 200      # other features still on
+    assert client.post("/admin/api/reset-stats", headers=AH).status_code == 422
+    assert client.post("/admin/api/reset-stats?confirm=RESET", headers=AH).status_code == 200
+    admin.settings.update(admin.DEFAULT_SETTINGS)
